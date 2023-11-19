@@ -3,7 +3,7 @@ use crate::token::{Token, TokenType};
 use anyhow::Result;
 use std::collections::HashMap;
 
-// TODO: replace uwnrap
+// TODO: replace unwrap, and use lazy_static
 pub fn scan_tokens(source: &str) -> Result<Vec<Token>> {
     let KEYWORDS: HashMap<&'static str, TokenType> = HashMap::from([
         ("and", TokenType::And),

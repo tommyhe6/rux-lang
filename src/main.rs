@@ -8,6 +8,8 @@ use std::{
 mod scanner;
 mod token;
 mod err;
+mod parser;
+mod interpreter;
 
 #[derive(Parser)]
 struct Cli {
@@ -34,5 +36,16 @@ fn main() {
 
 fn run(source: &str) {
     let a = scanner::scan_tokens(source).unwrap();
-    dbg!(a);
+    dbg!(&a);
+    let mut parser = parser::Parser::new(a);
+    match parser.parse() {
+        Ok(e) => {
+            dbg!(&e);
+            let v = interpreter::eval(e);
+            dbg!(&v);
+        }
+        _ => {
+            dbg!("IJ");
+        }
+    }
 }

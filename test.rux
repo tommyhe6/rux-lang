@@ -1,3 +1,1 @@
-if (thing) {
-    var r = "asdf";
-}
+3 + 4
