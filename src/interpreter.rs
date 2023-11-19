@@ -17,21 +17,21 @@ pub fn eval(e: Expr) -> Value {
         Expr::Literal(l) => {
             match l {
                 Literal::Number(n) => {
-                    return Value::Number(n);
+                    Value::Number(n)
                 }
                 Literal::String(s) => {
-                    return Value::String(s);
+                    Value::String((*s).to_owned())
                 }
                 Literal::Boolean(b) => {
-                    return Value::Boolean(b);
+                    Value::Boolean(b)
                 }
                 Literal::Nil => {
-                    return Value::Nil;
+                    Value::Nil
                 }
             }
         }
         Expr::Grouping(e) => {
-            return eval(*e);
+            eval(*e)
         }
         Expr::Unary { operator, right } => {
             let r = eval(*right);
@@ -39,7 +39,7 @@ pub fn eval(e: Expr) -> Value {
                 TokenType::Minus => {
                     match r {
                         Value::Number(n) => {
-                            return Value::Number(-n);
+                            Value::Number(-n)
                         }
                         _ => {
                             panic!("unary minus not number");
@@ -49,7 +49,7 @@ pub fn eval(e: Expr) -> Value {
                 TokenType::Bang => {
                     match r {
                         Value::Boolean(b) => {
-                            return Value::Boolean(!b);
+                            Value::Boolean(!b)
                         }
                         _ => {
                             panic!("unary bang not boolean");
@@ -68,7 +68,7 @@ pub fn eval(e: Expr) -> Value {
                 TokenType::Minus => {
                     match (l, r) {
                         (Value::Number(n1), Value::Number(n2)) => {
-                            return Value::Number(n1 - n2);
+                            Value::Number(n1 - n2)
                         }
                         _ => {
                             panic!("binary minus not number");
@@ -78,10 +78,10 @@ pub fn eval(e: Expr) -> Value {
                 TokenType::Plus => {
                     match (l, r) {
                         (Value::Number(n1), Value::Number(n2)) => {
-                            return Value::Number(n1 + n2);
+                            Value::Number(n1 + n2)
                         }
                         (Value::String(s1), Value::String(s2)) => {
-                            return Value::String(s1 + &s2);
+                            Value::String(s1 + &s2)
                         }
                         _ => {
                             panic!("binary plus not number or string");
@@ -91,7 +91,7 @@ pub fn eval(e: Expr) -> Value {
                 TokenType::Star => {
                     match (l, r) {
                         (Value::Number(n1), Value::Number(n2)) => {
-                            return Value::Number(n1 * n2);
+                            Value::Number(n1 * n2)
                         }
                         _ => {
                             panic!("binary star not number");

@@ -1,3 +1,25 @@
+use std::rc::Rc;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Keyword {
+    And,
+    Class,
+    Else,
+    False,
+    Fun,
+    For,
+    If,
+    Nil,
+    Or,
+    Print,
+    Return,
+    Super,
+    This,
+    True,
+    Var,
+    While,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Single-character tokens
@@ -22,41 +44,25 @@ pub enum TokenType {
     Less,
     LessEqual,
     // Literals
-    Identifier(String),
-    String(String),
+    Identifier(Rc<str>),
+    String(Rc<str>),
     Number(f64),
     // Keywords
-    And,
-    Class,
-    Else,
-    False,
-    Fun,
-    For,
-    If,
-    Nil,
-    Or,
-    Print,
-    Return,
-    Super,
-    This,
-    True,
-    Var,
-    While,
-    Eof,
+    Keyword(Keyword),
 }
 
 #[derive(Debug)]
 pub struct Token {
     pub token_type: TokenType,
-    lexeme: String,
-    line: i32,
+    lexeme: Rc<str>,
+    pub line: u32,
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, lexeme: &str, line: i32) -> Self {
+    pub fn new(token_type: TokenType, lexeme: &str, line: u32) -> Self {
         Self {
             token_type,
-            lexeme: String::from(lexeme),
+            lexeme: Rc::from(lexeme),
             line,
         }
     }

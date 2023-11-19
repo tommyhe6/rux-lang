@@ -1,30 +1,28 @@
-use crate::err;
-use crate::token::{Token, TokenType};
-use anyhow::Result;
-use std::collections::HashMap;
+use crate::err::{Error, Result, Stage};
+use crate::token::{Keyword, Token, TokenType};
+use phf::phf_map;
 
-// TODO: replace unwrap, and use lazy_static
+static KEYWORDS: phf::Map<&'static str, Keyword> = phf_map! {
+    "and" => Keyword::And,
+    "class" => Keyword::Class,
+    "else" => Keyword::Else,
+    "false" => Keyword::False,
+    "for" => Keyword::For,
+    "fun" => Keyword::Fun,
+    "if" => Keyword::If,
+    "nil" => Keyword::Nil,
+    "or" => Keyword::Or,
+    "print" => Keyword::Print,
+    "return" => Keyword::Return,
+    "super" => Keyword::Super,
+    "this" => Keyword::This,
+    "true" => Keyword::True,
+    "var" => Keyword::Var,
+    "while" => Keyword::While,
+};
+
 pub fn scan_tokens(source: &str) -> Result<Vec<Token>> {
-    let KEYWORDS: HashMap<&'static str, TokenType> = HashMap::from([
-        ("and", TokenType::And),
-        ("class", TokenType::Class),
-        ("else", TokenType::Else),
-        ("false", TokenType::False),
-        ("for", TokenType::For),
-        ("fun", TokenType::Fun),
-        ("if", TokenType::If),
-        ("nil", TokenType::Nil),
-        ("or", TokenType::Or),
-        ("print", TokenType::Print),
-        ("return", TokenType::Return),
-        ("super", TokenType::Super),
-        ("this", TokenType::This),
-        ("true", TokenType::True),
-        ("var", TokenType::Var),
-        ("while", TokenType::While),
-    ]);
-
-    let mut line = 0;
+    let mut line: u32 = 0;
     let mut tokens: Vec<Token> = Vec::new();
     let mut chars = source.chars().peekable();
 
@@ -80,69 +78,72 @@ pub fn scan_tokens(source: &str) -> Result<Vec<Token>> {
             '"' => {
                 let mut s = String::new();
                 loop {
-                    match chars.peek() {
-                        Some('"') => {
-                            chars.next();
-                            break;
+                    match chars.next() {
+                        Some('"') => break,
+                        Some(c) => {
+                            if c == '\n' {
+                                line += 1;
+                            }
+                            s.push(c);
                         }
-                        Some('\n') => line += 1,
                         None => {
-                            err::err(line, "Unterminated string.");
-                            break;
+                            return Err(Error::new(
+                                Stage::Scan,
+                                line,
+                                "Unterminated string.",
+                            ))
                         }
-                        _ => (),
                     };
-                    let c = chars.next().unwrap();
-                    s.push(c);
                 }
-                tokens.push(Token::new(TokenType::String(s.clone()), &s, line));
+                tokens.push(Token::new(TokenType::String(s.clone().into()), &s, line));
             }
             '0'..='9' => {
                 let mut s = String::new();
                 s.push(c);
-                loop {
-                    match chars.peek() {
-                        Some('0'..='9') => {
-                            s.push(chars.next().unwrap());
-                        }
-                        _ => break,
-                    };
+                while let Some('0'..='9') = chars.peek() {
+                    s.push(chars.next().unwrap());
                 }
                 if let Some('.') = chars.peek() {
                     s.push(chars.next().unwrap());
-                    loop {
-                        match chars.peek() {
-                            Some('0'..='9') => {
-                                s.push(chars.next().unwrap());
-                            }
-                            _ => break,
-                        };
+                    while let Some('0'..='9') = chars.peek() {
+                        s.push(chars.next().unwrap());
                     }
                 }
-                tokens.push(Token::new(TokenType::Number(s.parse::<f64>()?), &s, line));
+                tokens.push(Token::new(
+                    TokenType::Number(
+                        s.parse::<f64>()
+                            .map_err(|_| Error::new(Stage::Scan, line, "Invalid number."))?,
+                    ),
+                    &s,
+                    line,
+                ));
             }
             'a'..='z' | 'A'..='Z' | '_' => {
                 let mut s = String::from(c);
-                loop {
-                    match chars.peek() {
-                        Some(a) if a.is_alphanumeric() => {
-                            s.push(chars.next().unwrap());
-                        }
-                        _ => {
-                            break;
-                        }
+                while let Some(a) = chars.peek() {
+                    if a.is_alphanumeric() || *a == '_' {
+                        s.push(chars.next().unwrap());
+                    } else {
+                        break;
                     }
                 }
                 match KEYWORDS.get(s.as_str()) {
-                    Some(t) => tokens.push(Token::new(t.clone(), &s, line)),
-                    None => tokens.push(Token::new(TokenType::Identifier(s.clone()), &s, line)),
+                    Some(t) => tokens.push(Token::new(TokenType::Keyword(*t), &s, line)),
+                    None => tokens.push(Token::new(
+                        TokenType::Identifier(s.clone().into()),
+                        &s,
+                        line,
+                    )),
                 }
             }
             ' ' | '\r' | '\t' => (),
             '\n' => line += 1,
             _ => {
-                err::err(line, "Unexpected character.");
-                break;
+                return Err(Error::new(
+                    Stage::Scan,
+                    line,
+                    "Unexpected character.",
+                ))
             }
         }
     }

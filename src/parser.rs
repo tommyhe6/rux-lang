@@ -1,12 +1,13 @@
-use crate::token::{Token, TokenType};
-use anyhow::Result;
+use crate::err::{Error, Result};
+use crate::token::{Token, TokenType, Keyword};
 use std::iter::Peekable;
+use std::rc::Rc;
 use std::vec::IntoIter;
 
 #[derive(Debug)]
 pub enum Literal {
     Number(f64),
-    String(String),
+    String(Rc<str>),
     Boolean(bool),
     Nil,
 }
@@ -38,7 +39,7 @@ impl Parser {
     }
 
     pub fn parse(&mut self) -> Result<Expr> {
-        return self.expression();
+        self.expression()
     }
 
     fn expression(&mut self) -> Result<Expr> {
@@ -146,15 +147,15 @@ impl Parser {
     fn primary(&mut self) -> Result<Expr> {
         if let Some(t) = self.tokens.peek() {
             match t.token_type {
-                TokenType::False => {
+                TokenType::Keyword(Keyword::False) => {
                     self.tokens.next();
                     return Ok(Expr::Literal(Literal::Boolean(false)));
                 }
-                TokenType::True => {
+                TokenType::Keyword(Keyword::True) => {
                     self.tokens.next();
                     return Ok(Expr::Literal(Literal::Boolean(true)));
                 }
-                TokenType::Nil => {
+                TokenType::Keyword(Keyword::Nil) => {
                     self.tokens.next();
                     return Ok(Expr::Literal(Literal::Nil));
                 }
@@ -162,10 +163,11 @@ impl Parser {
                     self.tokens.next();
                     return Ok(Expr::Literal(Literal::Number(n)));
                 }
-                // TokenType::String(s) => {
-                //     self.tokens.next();
-                //     return Ok(Expr::Literal(Literal::String(s.clone())));
-                // }
+                TokenType::String(ref s) => {
+                    let temp = s.clone();
+                    self.tokens.next();
+                    return Ok(Expr::Literal(Literal::String(temp)));
+                }
                 TokenType::LeftParen => {
                     self.tokens.next();
                     let e = self.expression()?;
@@ -191,14 +193,14 @@ impl Parser {
                 TokenType::Semicolon => {
                     return;
                 }
-                TokenType::Class
-                | TokenType::Fun
-                | TokenType::Var
-                | TokenType::For
-                | TokenType::If
-                | TokenType::While
-                | TokenType::Print
-                | TokenType::Return => {
+                TokenType::Keyword(Keyword::Class)
+                | TokenType::Keyword(Keyword::Fun)
+                | TokenType::Keyword(Keyword::Var)
+                | TokenType::Keyword(Keyword::For)
+                | TokenType::Keyword(Keyword::If)
+                | TokenType::Keyword(Keyword::While)
+                | TokenType::Keyword(Keyword::Print)
+                | TokenType::Keyword(Keyword::Return) => {
                     return;
                 }
                 _ => {
