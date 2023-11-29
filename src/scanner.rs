@@ -1,5 +1,7 @@
-use crate::err::{Error, Result, Stage};
-use crate::token::{Keyword, Token, TokenType};
+use crate::{
+    err::{Error, Result},
+    token::{Keyword, Token, TokenType},
+};
 use phf::phf_map;
 
 static KEYWORDS: phf::Map<&'static str, Keyword> = phf_map! {
@@ -22,7 +24,7 @@ static KEYWORDS: phf::Map<&'static str, Keyword> = phf_map! {
 };
 
 pub fn scan_tokens(source: &str) -> Result<Vec<Token>> {
-    let mut line: u32 = 0;
+    let mut line: u32 = 1;
     let mut tokens: Vec<Token> = Vec::new();
     let mut chars = source.chars().peekable();
 
@@ -86,13 +88,7 @@ pub fn scan_tokens(source: &str) -> Result<Vec<Token>> {
                             }
                             s.push(c);
                         }
-                        None => {
-                            return Err(Error::new(
-                                Stage::Scan,
-                                line,
-                                "Unterminated string.",
-                            ))
-                        }
+                        None => return Err(Error::scan(line, "Unterminated string.")),
                     };
                 }
                 tokens.push(Token::new(TokenType::String(s.clone().into()), &s, line));
@@ -112,7 +108,7 @@ pub fn scan_tokens(source: &str) -> Result<Vec<Token>> {
                 tokens.push(Token::new(
                     TokenType::Number(
                         s.parse::<f64>()
-                            .map_err(|_| Error::new(Stage::Scan, line, "Invalid number."))?,
+                            .map_err(|_| Error::scan(line, "Invalid number."))?,
                     ),
                     &s,
                     line,
@@ -138,13 +134,7 @@ pub fn scan_tokens(source: &str) -> Result<Vec<Token>> {
             }
             ' ' | '\r' | '\t' => (),
             '\n' => line += 1,
-            _ => {
-                return Err(Error::new(
-                    Stage::Scan,
-                    line,
-                    "Unexpected character.",
-                ))
-            }
+            _ => return Err(Error::scan(line, "Unexpected character.")),
         }
     }
     Ok(tokens)

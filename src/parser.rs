@@ -1,8 +1,8 @@
-use crate::err::{Error, Result};
-use crate::token::{Token, TokenType, Keyword};
-use std::iter::Peekable;
-use std::rc::Rc;
-use std::vec::IntoIter;
+use crate::{
+    err::{Error, Result},
+    token::{Keyword, Token, TokenType},
+};
+use std::{iter::Peekable, rc::Rc, vec::IntoIter};
 
 #[derive(Debug)]
 pub enum Literal {
@@ -12,6 +12,7 @@ pub enum Literal {
     Nil,
 }
 
+// TODO: consider restricting Token types
 #[derive(Debug)]
 pub enum Expr {
     Literal(Literal),
@@ -25,6 +26,19 @@ pub enum Expr {
         operator: Token,
         right: Box<Expr>,
     },
+    Variable(Token),
+    Assign {
+        name: Token,
+        value: Box<Expr>,
+    },
+}
+
+#[derive(Debug)]
+pub enum Stmt {
+    Print(Expr),
+    Expr(Expr),
+    Block(Vec<Stmt>),
+    Var { name: Token, initializer: Expr },
 }
 
 pub struct Parser {
@@ -38,12 +52,109 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Expr> {
-        self.expression()
+    pub fn parse(&mut self) -> Result<Vec<Stmt>> {
+        let mut statements = Vec::new();
+        while self.tokens.peek().is_some() {
+            statements.push(self.declaration().map_err(|e| {
+                self.synchronize();
+                e
+            })?);
+        }
+        Ok(statements)
+    }
+
+    fn block(&mut self) -> Result<Vec<Stmt>> {
+        let mut statements = Vec::new();
+        while let Some(t) = self.tokens.peek() {
+            if t.token_type == TokenType::RightBrace {
+                self.tokens.next();
+                return Ok(statements);
+            }
+            statements.push(self.declaration().map_err(|e| {
+                self.synchronize();
+                e
+            })?);
+        }
+        Err(Error::parse(
+            self.tokens.peek().unwrap().line,
+            "Expected } at end of block",
+        ))
+    }
+
+    fn declaration(&mut self) -> Result<Stmt> {
+        if let Some(TokenType::Keyword(Keyword::Var)) = self.tokens.peek().map(|t| &t.token_type) {
+            self.tokens.next();
+            return self.var_declaration();
+        }
+        let s = self.statement()?;
+        Ok(s)
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt> {
+        if let Some(t) = self.tokens.next() {
+            if let TokenType::Identifier(_) = t.token_type {
+                if self.tokens.next().map(|t| t.token_type) == Some(TokenType::Equal) {
+                    let e = self.expression()?;
+                    if self.tokens.next().map(|t| t.token_type) == Some(TokenType::Semicolon) {
+                        return Ok(Stmt::Var {
+                            name: t,
+                            initializer: e,
+                        });
+                    }
+                    return Err(Error::parse(t.line, "Expected ; for var declaration"));
+                }
+                return Err(Error::parse(t.line, "Expected = for var declaration"));
+            }
+            return Err(Error::parse(
+                t.line,
+                "Expected identifier for var declaration",
+            ));
+        }
+        panic!("Expected =");
+    }
+
+    fn statement(&mut self) -> Result<Stmt> {
+        if self.tokens.peek().map(|t| &t.token_type) == Some(&TokenType::Keyword(Keyword::Print)) {
+            let t = self.tokens.next().unwrap();
+            let e = self.expression()?;
+            if self.tokens.next().map(|t| t.token_type) == Some(TokenType::Semicolon) {
+                return Ok(Stmt::Print(e));
+            }
+            return Err(Error::parse(t.line, "Expected ; for print statement"));
+        }
+        if self.tokens.peek().map(|t| &t.token_type) == Some(&TokenType::LeftBrace) {
+            self.tokens.next();
+            return Ok(Stmt::Block(self.block()?));
+        }
+        let e = self.expression()?;
+        if self.tokens.next().map(|t| t.token_type) == Some(TokenType::Semicolon) {
+            return Ok(Stmt::Expr(e));
+        }
+        // TODO: keep track of proper error line
+        panic!("Expected ; for expression statement");
     }
 
     fn expression(&mut self) -> Result<Expr> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Expr> {
+        let e = self.equality()?;
+        if let Some(t) = self.tokens.peek() {
+            if t.token_type == TokenType::Equal {
+                let l = t.line;
+                self.tokens.next();
+                let value = self.assignment()?;
+                if let Expr::Variable(name) = e {
+                    return Ok(Expr::Assign {
+                        name,
+                        value: Box::new(value),
+                    });
+                }
+                return Err(Error::parse(l, "Invalid assignment target"));
+            }
+        }
+        Ok(e)
     }
 
     fn equality(&mut self) -> Result<Expr> {
@@ -54,9 +165,9 @@ impl Parser {
                     let op = self.tokens.next().unwrap();
                     let r = self.comparison()?;
                     e = Expr::Binary {
-                        left: Box::from(e),
+                        left: Box::new(e),
                         operator: op,
-                        right: Box::from(r),
+                        right: Box::new(r),
                     }
                 }
                 _ => break,
@@ -76,9 +187,9 @@ impl Parser {
                     let op = self.tokens.next().unwrap();
                     let r = self.term()?;
                     e = Expr::Binary {
-                        left: Box::from(e),
+                        left: Box::new(e),
                         operator: op,
-                        right: Box::from(r),
+                        right: Box::new(r),
                     }
                 }
                 _ => break,
@@ -95,9 +206,9 @@ impl Parser {
                     let op = self.tokens.next().unwrap();
                     let r = self.factor()?;
                     e = Expr::Binary {
-                        left: Box::from(e),
+                        left: Box::new(e),
                         operator: op,
-                        right: Box::from(r),
+                        right: Box::new(r),
                     }
                 }
                 _ => break,
@@ -114,9 +225,9 @@ impl Parser {
                     let op = self.tokens.next().unwrap();
                     let r = self.unary()?;
                     e = Expr::Binary {
-                        left: Box::from(e),
+                        left: Box::new(e),
                         operator: op,
-                        right: Box::from(r),
+                        right: Box::new(r),
                     }
                 }
                 _ => break,
@@ -133,7 +244,7 @@ impl Parser {
                     let r = self.unary()?;
                     return Ok(Expr::Unary {
                         operator: op,
-                        right: Box::from(r),
+                        right: Box::new(r),
                     });
                 }
                 _ => {
@@ -145,8 +256,13 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr> {
-        if let Some(t) = self.tokens.peek() {
+        if let Some(t) = self.tokens.peek().cloned() {
+            // TODO: consider &t.token_type
             match t.token_type {
+                TokenType::Identifier(_) => {
+                    self.tokens.next();
+                    return Ok(Expr::Variable(t));
+                }
                 TokenType::Keyword(Keyword::False) => {
                     self.tokens.next();
                     return Ok(Expr::Literal(Literal::Boolean(false)));
@@ -171,17 +287,18 @@ impl Parser {
                 TokenType::LeftParen => {
                     self.tokens.next();
                     let e = self.expression()?;
-                    if let Some(t) = self.tokens.peek() {
-                        if t.token_type == TokenType::RightParen {
-                            self.tokens.next();
-                            return Ok(Expr::Grouping(Box::from(e)));
-                        } else {
-                            panic!("Expected )");
-                        }
+                    if self.tokens.peek().map(|t| &t.token_type) == Some(&TokenType::RightParen) {
+                        self.tokens.next();
+                        return Ok(Expr::Grouping(Box::new(e)));
                     }
-                    panic!("Expected )");
+                    return Err(Error::parse(t.line, "Expected )"));
                 }
-                _ => panic!("primary"),
+                _ => {
+                    return Err(Error::parse(
+                        t.line,
+                        "Unexpected token for a primary expression",
+                    ));
+                }
             }
         }
         panic!("Expected expression")

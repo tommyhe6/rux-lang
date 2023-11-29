@@ -51,10 +51,10 @@ pub enum TokenType {
     Keyword(Keyword),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub token_type: TokenType,
-    lexeme: Rc<str>,
+    pub lexeme: Rc<str>,
     pub line: u32,
 }
 

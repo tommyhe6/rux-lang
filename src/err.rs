@@ -12,12 +12,24 @@ pub struct Error {
     message: String,
 }
 impl Error {
-    pub fn new(stage: Stage, line: u32, message: &str) -> Self {
+    fn new(stage: Stage, line: u32, message: &str) -> Self {
         Self {
             stage,
             line,
             message: message.to_string(),
         }
+    }
+
+    pub fn eval(line: u32, message: &str) -> Self {
+        Self::new(Stage::Eval, line, message)
+    }
+
+    pub fn scan(line: u32, message: &str) -> Self {
+        Self::new(Stage::Scan, line, message)
+    }
+
+    pub fn parse(line: u32, message: &str) -> Self {
+        Self::new(Stage::Parse, line, message)
     }
 }
 impl std::fmt::Display for Error {
@@ -27,7 +39,7 @@ impl std::fmt::Display for Error {
             Stage::Scan => "Scan",
             Stage::Eval => "Eval",
         };
-        write!(f, "[line {}] {} error: {} at", self.line, stage, self.message)
+        write!(f, "[line {}] {} error: {}", self.line, stage, self.message)
     }
 }
 
